@@ -1,0 +1,48 @@
+services:
+
+  traefik:
+    image: traefik:${TRAEFIK_VERSION:-3}
+    ports:
+      - "80:80"
+      - "443:443"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-dashboard.rule=Host(`${FQDN_TRAEFIK:-traefik.openobserve.test}`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`))"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-dashboard.service=api@internal"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-dashboard.entrypoints=websecure"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-dashboard.tls=true"
+      - "traefik.http.middlewares.${COMPOSE_PROJECT_NAME}-dashboard-redirect.redirectregex.regex=^https?://${FQDN_TRAEFIK:-traefik.openobserve.test}/(.*)"
+      - "traefik.http.middlewares.${COMPOSE_PROJECT_NAME}-dashboard-redirect.redirectregex.replacement=https://${FQDN_TRAEFIK:-traefik.openobserve.test}/dashboard/$1"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-dashboard_redirect.rule=Host(`${FQDN_TRAEFIK:-traefik.openobserve.test}`) && !PathPrefix(`/api`) && !PathPrefix(`/dashboard`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-dashboard_redirect.middlewares=${COMPOSE_PROJECT_NAME}-dashboard-redirect"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-dashboard_redirect.entrypoints=websecure"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-dashboard_redirect.tls=true"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/dynamic:/etc/traefik/dynamic:ro
+      - ./traefik/certs:/certs:ro
+    depends_on:
+      - openobserve
+
+  openobserve:
+    image: o2cr.ai/openobserve/openobserve:latest
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-openobserve.rule=Host(`${FQDN_OPENOBSERVE:-openobserve.test}`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-openobserve.entrypoints=websecure"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-openobserve.tls=true"
+      - "traefik.http.services.${COMPOSE_PROJECT_NAME}-openobserve.loadbalancer.server.port=5080"
+      - "traefik.http.services.${COMPOSE_PROJECT_NAME}-openobserve.loadbalancer.server.scheme=http"
+    #      - "traefik.http.services.${COMPOSE_PROJECT_NAME}-openobserve.loadbalancer.serversTransport=forceInsecureTransport@file"
+    volumes:
+      - openobserve_data:/data
+    environment:
+      - ZO_DATA_DIR=/data
+      - ZO_ROOT_USER_EMAIL=${ZO_ROOT_USER_EMAIL:-root@openobserve.test}
+      - ZO_ROOT_USER_PASSWORD=${ZO_ROOT_USER_PASSWORD:-12345Abcde.}
+
+volumes:
+  openobserve_data:
