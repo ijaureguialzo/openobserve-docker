@@ -28,7 +28,7 @@ services:
       - openobserve
 
   openobserve:
-    image: o2cr.ai/openobserve/openobserve:latest
+    image: openobserve/openobserve:latest
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-openobserve.rule=Host(`${FQDN_OPENOBSERVE:-openobserve.test}`)"
